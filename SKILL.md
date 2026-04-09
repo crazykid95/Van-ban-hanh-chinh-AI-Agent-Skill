@@ -38,45 +38,100 @@ Run `python scripts/office/validate.py` on the output, confirm details with the 
 
 The goal is to produce a `.docx` that looks and behaves like a document someone built by hand in Microsoft Word. The user should be able to open it, click on any element, and edit it normally. This section defines how to achieve that.
 
-### Layout: use hidden-border tables, not tab stops
+### Layout: hidden-border tables
 
-The two-column header (authority name on the left, national emblem on the right) and the footer (recipients on the left, signatory on the right) must be laid out using **Table elements with all borders set to NONE**. This is how people actually do it in Word — a 2-column, borderless table keeps left and right content aligned regardless of text length.
+The header uses a **2-column, 2-row borderless table**:
+- **Row 1**: authority name + shape line (left) | quốc hiệu + tiêu ngữ + shape line (right)
+- **Row 2**: số ký hiệu + V/v (left) | địa danh, ngày tháng (right)
 
-Do NOT use tab stops or manual spacing to align the left and right halves. Tabs break when text length changes; tables don't.
+The shape line MUST stay in the same row as the text it underlines. Putting the line
+and the next content (date, document number) in the same row causes the line to stick
+to that content visually.
+
+The footer uses a **2-column, 1-row borderless table**: recipients (left), signatory (right).
+
+Column widths: left ~38%, right ~62%. The right column MUST be wide enough so that
+"CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM" and "Độc lập - Tự do - Hạnh phúc" **never wrap
+to a second line** — wrapping quốc hiệu tiêu ngữ giữa chừng is strictly forbidden
+(tối kỵ) in Vietnamese administrative documents.
+
+Do NOT use tab stops or manual spacing to position elements.
+
+**Critical**: borders must be removed at **two levels** — both the Table level AND each
+Cell level. If you only remove cell borders, the table's internal gridlines
+(`insideHorizontal`, `insideVertical`) will still show in Word.
 
 ```javascript
-// Every layout table must have this:
-const NO_BORDER = { style: BorderStyle.NONE, size: 0 };
-const NO_BORDERS = { top: NO_BORDER, bottom: NO_BORDER, left: NO_BORDER, right: NO_BORDER };
-// And each TableCell must include: borders: NO_BORDERS
-```
+// TABLE-level: hides outer borders AND internal gridlines
+const TABLE_BORDERS_NONE = {
+  top:              { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  bottom:           { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  left:             { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  right:            { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  insideVertical:   { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+};
 
-### Underlines: use paragraph bottom borders with explicit width
+// CELL-level: hides each cell's individual borders
+const NO_BORDER = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
+const CELL_BORDERS_NONE = {
+  top: NO_BORDER, bottom: NO_BORDER,
+  left: NO_BORDER, right: NO_BORDER
+};
 
-The underlines below "Độc lập - Tự do - Hạnh phúc", below the issuing authority name, and below the document summary (trích yếu) are **not** text underlines. They are **bottom borders on a dedicated empty paragraph** placed right after the text.
+// Use on Table:
+new Table({ borders: TABLE_BORDERS_NONE, ... })
 
-This is the right approach because:
-- The user can select the paragraph and adjust the border width/length in Word
-- It matches how Vietnamese government templates are actually built
-- It won't disappear or shift when text is edited
-
-```javascript
-// Underline = a short empty paragraph with bottom border
-new Paragraph({
-  alignment: AlignmentType.CENTER,
-  spacing: { before: 0, after: 0 },
-  // Use indent to control the visible width of the line:
-  indent: { left: 600, right: 600 }, // narrower than full column width
-  border: {
-    bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000", space: 1 }
-  },
-  children: [] // empty — the border IS the underline
+// Use on each TableCell:
+new TableCell({
+  borders: CELL_BORDERS_NONE,
+  margins: { top: 0, bottom: 0, left: 0, right: 0 },
+  verticalAlign: VerticalAlign.TOP,
+  ...
 })
 ```
 
-To control underline width: adjust `indent.left` and `indent.right`. Wider indents = shorter line. The user can later change these indents in Word to resize the line.
+**API note**: Table and TableCell use `borders` (plural). Paragraph uses `border` (singular).
 
-For the tiêu ngữ underline (under "Độc lập - Tự do - Hạnh phúc"), the line should be roughly the same width as the text. For the authority name underline, it should be about 1/3 to 1/2 of the name width.
+### Underlines: Shape lines (Insert > Shapes > Line)
+
+Vietnamese administrative documents use **Shape lines** for all decorative underlines — below
+tiêu ngữ ("Độc lập - Tự do - Hạnh phúc"), "ĐẢNG CỘNG SẢN VIỆT NAM", authority name, and
+trích yếu. This is the traditional approach used in real Vietnamese government offices: the
+line is a selectable, resizable drawing object (Insert > Shapes > Line in Word).
+
+**docx-js does not natively support Shape objects.** Use a two-step process:
+
+1. Place a **placeholder paragraph** with an invisible marker where each line should go.
+2. After `Packer.toBuffer()`, use **JSZip** to replace each placeholder with real OOXML
+   inline drawing XML (`<wp:inline>` containing `<wps:wsp>` with `prst="line"`).
+
+See `references/mau-van-ban.md` → "Shape line" section for the complete helper code
+(`shapePlaceholder()`, `shapeLineXml()`, `injectShapeLines()`).
+
+```javascript
+// Placeholder (step 1): invisible marker — will be replaced by shape line
+function shapePlaceholder(widthCm = 5.5) {
+  return new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 0, after: 0 },
+    children: [new TextRun({
+      text: `__LINE_${widthCm}CM__`,
+      font: FONT, size: 2, color: "FFFFFF"
+    })],
+  });
+}
+
+// Post-processing (step 2): see mau-van-ban.md for injectShapeLines()
+```
+
+Standard widths:
+- Tiêu ngữ / "ĐẢNG CỘNG SẢN VIỆT NAM" underline: **5.5 cm**
+- Authority name / trích yếu underline: **3.0 cm**
+- All lines: 0.5pt, black
+
+Do NOT use paragraph bottom borders, underlined spaces, or any other workaround.
+Shape lines are the only standard method for Vietnamese administrative documents.
 
 ### Headings: use real heading styles where appropriate
 
@@ -116,13 +171,18 @@ Exception: "Điều 1.", "Điều 2." in Quyết định are traditionally writt
 
 The "Nơi nhận:" label and the recipient items (- Như trên; - Lưu: VT, VP.) should just be plain paragraphs with manual dash prefixes. These are NOT bullet lists in practice — Vietnamese administrative templates use plain text with dashes, and converting them to Word bullet lists would add unwanted indent and bullet styling.
 
-### Cell padding and spacing in layout tables
+### Cell padding and vertical alignment in layout tables
 
-All TableCell elements in layout tables should include internal padding so text doesn't touch the cell edges:
+All TableCell elements in layout tables should have zero internal padding (page margins
+already provide spacing) and top vertical alignment:
 
 ```javascript
-margins: { top: 0, bottom: 0, left: 0, right: 0 }
-// Use 0 for layout tables — the page margins already provide spacing.
+new TableCell({
+  borders: CELL_BORDERS_NONE,
+  margins: { top: 0, bottom: 0, left: 0, right: 0 },
+  verticalAlign: VerticalAlign.TOP, // import VerticalAlign from docx
+  children: [...]
+})
 // Only add cell margins (80–120 DXA) for data tables in the body.
 ```
 
@@ -165,7 +225,7 @@ headers: {
 |---|---|---|
 | Right header | CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM | ĐẢNG CỘNG SẢN VIỆT NAM |
 | Left header | Government authority name | Party organization name |
-| Separator below org name | Underline (border) | Asterisk (*) |
+| Separator below org name | Shape line (~3cm) | Asterisk (*) |
 | Code separator | Slash: `Số: 30/2020/NĐ-CP` | Hyphen: `Số: 36-HD/VPTW` |
 | Authority prefix | TM., KT., TL. | T/M, K/T, T/L |
 | Doc type font size | 13–14pt | 15–16pt |
@@ -178,9 +238,33 @@ headers: {
 
 ## Rules
 
+### Formatting rules
+
 1. Read the reference file for the relevant standard before writing any code
 2. Font is Times New Roman everywhere — no exceptions
 3. All Vietnamese text uses full diacritics
 4. Dates: "ngày DD tháng MM năm YYYY" with leading zeros (01–09, 01–02)
-5. Layout via hidden-border tables, underlines via paragraph bottom borders
+5. Layout via hidden-border tables, underlines via Shape lines (Insert > Shapes > Line)
 6. The document must be fully editable in Word — no hacks that look right but break on edit
+7. Quốc hiệu tiêu ngữ ("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM", "Độc lập - Tự do - Hạnh phúc") MUST NOT wrap to a second line — this is strictly forbidden. Ensure the right column is wide enough (~62% of content width)
+8. Shape lines must be in the same table row as the text they underline — never in the next row where they'd visually stick to different content
+
+### Content rules
+
+9. **Chính tả**: Nội dung văn bản phải được viết đúng chính tả tiếng Việt. Kiểm tra kỹ dấu hỏi/ngã, các từ dễ sai chính tả (ví dụ: "giải quyết" không phải "giải quết", "kỷ luật" không phải "kỉ luật" trong văn bản hành chính). Nếu không chắc chắn, tra cứu từ điển chính tả tiếng Việt.
+
+10. **Từ ngữ hành chính**: Sử dụng từ ngữ hành chính thông dụng, chuẩn mực trong văn bản hành chính Việt Nam. Tránh dùng từ ngữ đời thường, khẩu ngữ, hoặc cách diễn đạt không phù hợp với văn phong hành chính. Ví dụ:
+    - Dùng "đề nghị", "kính đề nghị" thay vì "xin", "mong"
+    - Dùng "triển khai thực hiện" thay vì "làm"
+    - Dùng "phối hợp" thay vì "hợp tác"
+    - Dùng "trân trọng" thay vì "cảm ơn"
+    - Kết thúc bằng "./." (dấu chấm gạch chéo chấm) đúng quy chuẩn
+
+11. **Nội dung chính xác**: Nội dung phải đúng về thông tin, logic, và phù hợp với ngữ cảnh của loại văn bản. Các căn cứ pháp lý (tên luật, nghị định, thông tư) phải chính xác nếu được viện dẫn.
+
+12. **Giảm thiểu dấu hiệu AI**: Sau khi soạn xong nội dung, đọc lại toàn bộ văn bản và chỉnh sửa để:
+    - Tránh các cụm từ lặp đi lặp lại một cách máy móc
+    - Tránh liệt kê quá đều đặn, quá cân đối (mỗi điểm cùng độ dài)
+    - Tránh dùng các cách diễn đạt mang tính "template" quá rõ ràng
+    - Đảm bảo giọng văn tự nhiên, mang tính chuyên nghiệp của người soạn thảo văn bản hành chính thực thụ
+    - Nội dung nên cụ thể, có chi tiết thực tế, tránh viết chung chung kiểu mẫu
