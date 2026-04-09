@@ -20,6 +20,7 @@
  *   "noiDung": ["Paragraph 1", "Paragraph 2", ...],
  *   "canCuList": [...] (only for quyết định),
  *   "dieuList": [...] (only for quyết định),
+ *   "theoDeNghi": "..." (only for quyết định),
  *   "noiNhanList": ["Như trên;", "Lưu: VT, VP."],
  *   "quyenHan": "TM." | "KT." | "TL." | "T/M" | "K/T" | "T/L" | null,
  *   "chucVu": "GIÁM ĐỐC",
@@ -28,7 +29,8 @@
  */
 
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-        AlignmentType, WidthType, BorderStyle, PageBreak } = require('docx');
+        AlignmentType, WidthType, BorderStyle, Header, PageNumber,
+        LevelFormat } = require('docx');
 const fs = require('fs');
 
 // ============================================================
@@ -40,6 +42,7 @@ const LEFT_COL = 4677;      // ~50%
 const RIGHT_COL = 4678;     // ~50%
 const NO_BORDER = { style: BorderStyle.NONE, size: 0 };
 const NO_BORDERS = { top: NO_BORDER, bottom: NO_BORDER, left: NO_BORDER, right: NO_BORDER };
+const CELL_MARGINS = { top: 0, bottom: 0, left: 0, right: 0 };
 
 // A4 page configuration per NĐ 30/2020
 const PAGE_A4 = {
@@ -47,10 +50,41 @@ const PAGE_A4 = {
   margin: { top: 1134, bottom: 1134, left: 1701, right: 850 } // 20/20/30/15mm
 };
 
+// Page header: page number centered, starting from page 2
+const PAGE_HEADER = new Header({
+  children: [new Paragraph({
+    alignment: AlignmentType.CENTER,
+    children: [new TextRun({
+      children: [PageNumber.CURRENT],
+      font: FONT, size: 26
+    })]
+  })]
+});
+
 // ============================================================
 // HELPER FUNCTIONS
 // ============================================================
 
+/**
+ * Creates an editable underline (empty paragraph with bottom border).
+ * The indent controls visible width — bigger indent = shorter line.
+ * In Word, users can change the indent to resize the line.
+ */
+function underline(indentLeft = 600, indentRight = 600) {
+  return new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 0, after: 0 },
+    indent: { left: indentLeft, right: indentRight },
+    border: {
+      bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000", space: 1 }
+    },
+    children: []
+  });
+}
+
+/**
+ * Shorthand for a single-run paragraph.
+ */
 function p(text, opts = {}) {
   const {
     alignment = AlignmentType.JUSTIFIED,
@@ -69,23 +103,14 @@ function p(text, opts = {}) {
   });
 }
 
-function separator() {
-  return new Paragraph({
-    alignment: AlignmentType.CENTER,
-    spacing: { before: 0, after: 120 },
-    border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000", space: 1 } },
-    children: []
-  });
-}
-
 // ============================================================
 // HEADER BUILDERS
 // ============================================================
 
 /**
  * Government document header (NĐ 30/2020)
- * Left column: Cơ quan chủ quản + Cơ quan ban hành
- * Right column: Quốc hiệu + Tiêu ngữ
+ * Left column: Cơ quan chủ quản + Cơ quan ban hành + underline
+ * Right column: Quốc hiệu + Tiêu ngữ + underline
  */
 function buildHeaderNhaNuoc(cfg) {
   const rows = [
@@ -94,37 +119,61 @@ function buildHeaderNhaNuoc(cfg) {
       children: [
         new TableCell({
           borders: NO_BORDERS, width: { size: LEFT_COL, type: WidthType.DXA },
-          children: [p(cfg.coQuanChuQuan || "", {
-            size: 26, center: true, spacing: { before: 0, after: 0 }
+          margins: CELL_MARGINS,
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 0, after: 0 },
+            children: [new TextRun({
+              text: (cfg.coQuanChuQuan || "").toUpperCase(),
+              font: FONT, size: 26
+            })]
           })]
         }),
         new TableCell({
           borders: NO_BORDERS, width: { size: RIGHT_COL, type: WidthType.DXA },
-          children: [p("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM", {
-            size: 26, bold: true, center: true, spacing: { before: 0, after: 0 }
+          margins: CELL_MARGINS,
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 0, after: 0 },
+            children: [new TextRun({
+              text: "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM",
+              font: FONT, size: 26, bold: true
+            })]
           })]
         })
       ]
     }),
-    // Row 2: Issuing authority + rule (left) | Tiêu ngữ + rule (right)
+    // Row 2: Issuing authority + underline (left) | Tiêu ngữ + underline (right)
     new TableRow({
       children: [
         new TableCell({
           borders: NO_BORDERS, width: { size: LEFT_COL, type: WidthType.DXA },
+          margins: CELL_MARGINS,
           children: [
-            p(cfg.coQuanBanHanh || "", {
-              size: 26, bold: true, center: true, spacing: { before: 0, after: 0 }
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 0, after: 0 },
+              children: [new TextRun({
+                text: (cfg.coQuanBanHanh || "").toUpperCase(),
+                font: FONT, size: 26, bold: true
+              })]
             }),
-            separator()
+            underline(1200, 1200) // ~1/3 of column width
           ]
         }),
         new TableCell({
           borders: NO_BORDERS, width: { size: RIGHT_COL, type: WidthType.DXA },
+          margins: CELL_MARGINS,
           children: [
-            p("Độc lập - Tự do - Hạnh phúc", {
-              size: 28, bold: true, center: true, spacing: { before: 0, after: 0 }
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 0, after: 0 },
+              children: [new TextRun({
+                text: "Độc lập - Tự do - Hạnh phúc",
+                font: FONT, size: 28, bold: true
+              })]
             }),
-            separator()
+            underline(200, 200) // roughly same width as motto text
           ]
         })
       ]
@@ -134,14 +183,26 @@ function buildHeaderNhaNuoc(cfg) {
       children: [
         new TableCell({
           borders: NO_BORDERS, width: { size: LEFT_COL, type: WidthType.DXA },
-          children: [p(cfg.soKyHieu || "", {
-            size: 26, center: true, spacing: { before: 120, after: 0 }
+          margins: CELL_MARGINS,
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 120, after: 0 },
+            children: [new TextRun({
+              text: cfg.soKyHieu || "",
+              font: FONT, size: 26
+            })]
           })]
         }),
         new TableCell({
           borders: NO_BORDERS, width: { size: RIGHT_COL, type: WidthType.DXA },
-          children: [p(`${cfg.diaDanh}, ${cfg.ngayThang}`, {
-            size: 28, italics: true, center: true, spacing: { before: 120, after: 0 }
+          margins: CELL_MARGINS,
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 120, after: 0 },
+            children: [new TextRun({
+              text: `${cfg.diaDanh}, ${cfg.ngayThang}`,
+              font: FONT, size: 28, italics: true
+            })]
           })]
         })
       ]
@@ -158,7 +219,7 @@ function buildHeaderNhaNuoc(cfg) {
 /**
  * Party document header (HD 36-HD/VPTW)
  * Left column: Tổ chức Đảng cấp trên + Tổ chức ban hành + dấu sao (*)
- * Right column: "ĐẢNG CỘNG SẢN VIỆT NAM" + đường kẻ + địa danh ngày tháng
+ * Right column: "ĐẢNG CỘNG SẢN VIỆT NAM" + underline + địa danh ngày tháng
  */
 function buildHeaderDang(cfg) {
   const rows = [
@@ -167,36 +228,64 @@ function buildHeaderDang(cfg) {
       children: [
         new TableCell({
           borders: NO_BORDERS, width: { size: LEFT_COL, type: WidthType.DXA },
-          children: [p(cfg.coQuanChuQuan || "", {
-            size: 28, center: true, spacing: { before: 0, after: 0 }
+          margins: CELL_MARGINS,
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 0, after: 0 },
+            children: [new TextRun({
+              text: (cfg.coQuanChuQuan || "").toUpperCase(),
+              font: FONT, size: 28
+            })]
           })]
         }),
         new TableCell({
           borders: NO_BORDERS, width: { size: RIGHT_COL, type: WidthType.DXA },
-          children: [p("ĐẢNG CỘNG SẢN VIỆT NAM", {
-            size: 32, bold: true, center: true, spacing: { before: 0, after: 0 }
+          margins: CELL_MARGINS,
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 0, after: 0 },
+            children: [new TextRun({
+              text: "ĐẢNG CỘNG SẢN VIỆT NAM",
+              font: FONT, size: 32, bold: true
+            })]
           })]
         })
       ]
     }),
-    // Row 2: Issuing org + asterisk (left) | Rule + date (right)
+    // Row 2: Issuing org + asterisk (left) | Underline + date (right)
     new TableRow({
       children: [
         new TableCell({
           borders: NO_BORDERS, width: { size: LEFT_COL, type: WidthType.DXA },
+          margins: CELL_MARGINS,
           children: [
-            p(cfg.coQuanBanHanh || "", {
-              size: 28, bold: true, center: true, spacing: { before: 0, after: 0 }
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 0, after: 0 },
+              children: [new TextRun({
+                text: (cfg.coQuanBanHanh || "").toUpperCase(),
+                font: FONT, size: 28, bold: true
+              })]
             }),
-            p("*", { size: 28, center: true, spacing: { before: 0, after: 0 } })
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 0, after: 0 },
+              children: [new TextRun({ text: "*", font: FONT, size: 28 })]
+            })
           ]
         }),
         new TableCell({
           borders: NO_BORDERS, width: { size: RIGHT_COL, type: WidthType.DXA },
+          margins: CELL_MARGINS,
           children: [
-            separator(),
-            p(`${cfg.diaDanh}, ${cfg.ngayThang}`, {
-              size: 28, italics: true, center: true, spacing: { before: 60, after: 0 }
+            underline(200, 200),
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 60, after: 0 },
+              children: [new TextRun({
+                text: `${cfg.diaDanh}, ${cfg.ngayThang}`,
+                font: FONT, size: 28, italics: true
+              })]
             })
           ]
         })
@@ -207,13 +296,20 @@ function buildHeaderDang(cfg) {
       children: [
         new TableCell({
           borders: NO_BORDERS, width: { size: LEFT_COL, type: WidthType.DXA },
-          children: [p(cfg.soKyHieu || "", {
-            size: 26, center: true, spacing: { before: 60, after: 0 }
+          margins: CELL_MARGINS,
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 60, after: 0 },
+            children: [new TextRun({
+              text: cfg.soKyHieu || "",
+              font: FONT, size: 26
+            })]
           })]
         }),
         new TableCell({
           borders: NO_BORDERS, width: { size: RIGHT_COL, type: WidthType.DXA },
-          children: [p("", { spacing: { before: 0, after: 0 } })]
+          margins: CELL_MARGINS,
+          children: [new Paragraph({ spacing: { after: 0 }, children: [] })]
         })
       ]
     })
@@ -233,30 +329,46 @@ function buildHeaderDang(cfg) {
 function buildFooter(cfg) {
   // Left column: Nơi nhận (recipients)
   const noiNhanChildren = [
-    p([new TextRun({ text: "Nơi nhận:", font: FONT, size: 24, bold: true, italics: true })], {
-      spacing: { before: 240, after: 0 }
+    new Paragraph({
+      spacing: { before: 240, after: 0 },
+      children: [new TextRun({
+        text: "Nơi nhận:",
+        font: FONT, size: 24, bold: true, italics: true
+      })]
     })
   ];
   (cfg.noiNhanList || []).forEach(item => {
-    noiNhanChildren.push(p(`- ${item}`, {
-      size: 22, spacing: { before: 0, after: 0 }, alignment: AlignmentType.LEFT
+    noiNhanChildren.push(new Paragraph({
+      spacing: { before: 0, after: 0 },
+      children: [new TextRun({ text: `- ${item}`, font: FONT, size: 22 })]
     }));
   });
 
   // Right column: Signatory block
-  const chuKyChildren = [];
   const qh = cfg.quyenHan ? `${cfg.quyenHan} ` : "";
-  chuKyChildren.push(p(`${qh}${cfg.chucVu || ""}`.toUpperCase(), {
-    size: 28, bold: true, center: true, spacing: { before: 240, after: 0 }
-  }));
-  // Blank space for handwritten signature
-  for (let i = 0; i < 3; i++) {
-    chuKyChildren.push(p(" ", { spacing: { before: 0, after: 0 } }));
-  }
-  // Full name
-  chuKyChildren.push(p(cfg.hoTen || "", {
-    size: 28, bold: true, center: true, spacing: { before: 0, after: 0 }
-  }));
+  const chuKyChildren = [
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 240, after: 0 },
+      children: [new TextRun({
+        text: `${qh}${cfg.chucVu || ""}`.toUpperCase(),
+        font: FONT, size: 28, bold: true
+      })]
+    }),
+    // 3 blank lines for handwritten signature
+    ...Array(3).fill(null).map(() => new Paragraph({
+      spacing: { before: 0, after: 0 },
+      children: [new TextRun({ text: " ", font: FONT, size: 28 })]
+    })),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 0, after: 0 },
+      children: [new TextRun({
+        text: cfg.hoTen || "",
+        font: FONT, size: 28, bold: true
+      })]
+    })
+  ];
 
   return new Table({
     width: { size: CONTENT_WIDTH, type: WidthType.DXA },
@@ -265,10 +377,14 @@ function buildFooter(cfg) {
       children: [
         new TableCell({
           borders: NO_BORDERS, width: { size: LEFT_COL, type: WidthType.DXA },
+          margins: CELL_MARGINS,
+          verticalAlign: "top",
           children: noiNhanChildren
         }),
         new TableCell({
           borders: NO_BORDERS, width: { size: RIGHT_COL, type: WidthType.DXA },
+          margins: CELL_MARGINS,
+          verticalAlign: "top",
           children: chuKyChildren
         })
       ]
@@ -287,25 +403,37 @@ function buildCongVan(cfg) {
 
   // "V/v" summary (government công văn only)
   if (!isDang && cfg.trichYeu) {
-    children.push(p(`V/v ${cfg.trichYeu}`, {
-      size: 24, spacing: { before: 60, after: 240 }, alignment: AlignmentType.LEFT
+    children.push(new Paragraph({
+      spacing: { before: 60, after: 240 },
+      children: [new TextRun({
+        text: `V/v ${cfg.trichYeu}`,
+        font: FONT, size: 24
+      })]
     }));
   }
 
   // "Kính gửi:" — centered
   if (cfg.kinhGui) {
-    children.push(p([
-      new TextRun({ text: "Kính gửi: ", font: FONT, size: 26 }),
-      new TextRun({ text: cfg.kinhGui, font: FONT, size: 26 })
-    ], { center: true, spacing: { before: 120, after: 120 } }));
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 0, after: 120 },
+      children: [
+        new TextRun({ text: "Kính gửi: ", font: FONT, size: 26 }),
+        new TextRun({ text: cfg.kinhGui, font: FONT, size: 26 })
+      ]
+    }));
   }
 
-  // Body paragraphs
+  // Body paragraphs — justified, 1.27cm first-line indent
   (cfg.noiDung || []).forEach(text => {
-    children.push(p(text, { indent: { firstLine: 720 } }));
+    children.push(new Paragraph({
+      alignment: AlignmentType.JUSTIFIED,
+      spacing: { before: 120, after: 0, line: 276 },
+      indent: { firstLine: 720 },
+      children: [new TextRun({ text, font: FONT, size: 26 })]
+    }));
   });
 
-  // Footer (recipients + signatory)
   children.push(buildFooter(cfg));
   return children;
 }
@@ -313,55 +441,85 @@ function buildCongVan(cfg) {
 function buildQuyetDinh(cfg) {
   const isDang = cfg.heTieuChuan === "dang";
   const header = isDang ? buildHeaderDang(cfg) : buildHeaderNhaNuoc(cfg);
+  const titleSize = isDang ? 32 : 28;
   const children = [header];
 
   // Document type: "QUYẾT ĐỊNH"
-  children.push(p("QUYẾT ĐỊNH", {
-    size: isDang ? 32 : 28, bold: true, center: true,
-    spacing: { before: 360, after: 0 }
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 360, after: 0 },
+    children: [new TextRun({
+      text: "QUYẾT ĐỊNH", font: FONT, size: titleSize, bold: true
+    })]
   }));
 
-  // Summary
+  // Summary + underline
   if (cfg.trichYeu) {
-    children.push(p(cfg.trichYeu, {
-      size: 28, bold: true, center: true, spacing: { before: 0, after: 0 }
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 0, after: 0 },
+      children: [new TextRun({
+        text: cfg.trichYeu, font: FONT, size: 28, bold: true
+      })]
     }));
-    children.push(separator());
+    children.push(underline(1000, 1000));
   }
 
   // Signatory title
-  children.push(p((cfg.chucVu || "").toUpperCase(), {
-    size: 28, bold: true, center: true, spacing: { before: 120, after: 120 }
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 120, after: 120 },
+    children: [new TextRun({
+      text: (cfg.chucVu || "").toUpperCase(),
+      font: FONT, size: 28, bold: true
+    })]
   }));
 
   // Legal basis ("Căn cứ") — italic
   (cfg.canCuList || []).forEach(canCu => {
-    children.push(p(`Căn cứ ${canCu};`, {
-      size: 26, italics: true, indent: { firstLine: 720 },
-      spacing: { before: 60, after: 0 }
+    children.push(new Paragraph({
+      alignment: AlignmentType.JUSTIFIED,
+      spacing: { before: 60, after: 0, line: 276 },
+      indent: { firstLine: 720 },
+      children: [new TextRun({
+        text: `Căn cứ ${canCu};`,
+        font: FONT, size: 26, italics: true
+      })]
     }));
   });
 
   // "Theo đề nghị" — italic
   if (cfg.theoDeNghi) {
-    children.push(p(`Theo đề nghị ${cfg.theoDeNghi}.`, {
-      size: 26, italics: true, indent: { firstLine: 720 },
-      spacing: { before: 60, after: 120 }
+    children.push(new Paragraph({
+      alignment: AlignmentType.JUSTIFIED,
+      spacing: { before: 60, after: 120, line: 276 },
+      indent: { firstLine: 720 },
+      children: [new TextRun({
+        text: `Theo đề nghị ${cfg.theoDeNghi}.`,
+        font: FONT, size: 26, italics: true
+      })]
     }));
   }
 
   // "QUYẾT ĐỊNH:" label
-  children.push(p("QUYẾT ĐỊNH:", {
-    size: 28, bold: true, center: true, spacing: { before: 240, after: 120 }
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 240, after: 120 },
+    children: [new TextRun({
+      text: "QUYẾT ĐỊNH:", font: FONT, size: 28, bold: true
+    })]
   }));
 
-  // Articles (Điều)
+  // Articles (Điều) — "Điều X." is inline bold text (convention)
   (cfg.dieuList || []).forEach((dieu, i) => {
-    children.push(p([
-      new TextRun({ text: `Điều ${i + 1}. `, font: FONT, size: 26, bold: true }),
-      new TextRun({ text: dieu, font: FONT, size: 26 })
-    ], {
-      indent: { firstLine: 720 }, spacing: { before: 120, after: 0 }
+    children.push(new Paragraph({
+      alignment: AlignmentType.JUSTIFIED,
+      spacing: { before: 120, after: 0, line: 276 },
+      indent: { firstLine: 720 },
+      children: [
+        new TextRun({ text: `Điều ${i + 1}. `, font: FONT, size: 26, bold: true }),
+        new TextRun({ text: dieu, font: FONT, size: 26 })
+      ]
     }));
   });
 
@@ -372,33 +530,52 @@ function buildQuyetDinh(cfg) {
 function buildGeneric(cfg, tenLoaiVB) {
   const isDang = cfg.heTieuChuan === "dang";
   const header = isDang ? buildHeaderDang(cfg) : buildHeaderNhaNuoc(cfg);
+  const bodySize = isDang ? 28 : 26;
+  const titleSize = isDang ? 32 : 28;
   const children = [header];
 
   // Document type name
-  children.push(p(tenLoaiVB.toUpperCase(), {
-    size: isDang ? 32 : 28, bold: true, center: true,
-    spacing: { before: 360, after: 0 }
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 360, after: 0 },
+    children: [new TextRun({
+      text: tenLoaiVB.toUpperCase(),
+      font: FONT, size: titleSize, bold: true
+    })]
   }));
 
-  // Summary
+  // Summary + underline
   if (cfg.trichYeu) {
-    children.push(p(cfg.trichYeu, {
-      size: 28, bold: true, center: true, spacing: { before: 0, after: 0 }
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 0, after: 0 },
+      children: [new TextRun({
+        text: cfg.trichYeu, font: FONT, size: 28, bold: true
+      })]
     }));
-    children.push(separator());
+    children.push(underline(1000, 1000));
   }
 
   // "Kính gửi:" (for Tờ trình, etc.)
   if (cfg.kinhGui) {
-    children.push(p([
-      new TextRun({ text: "Kính gửi: ", font: FONT, size: 26 }),
-      new TextRun({ text: cfg.kinhGui, font: FONT, size: 26 })
-    ], { center: true, spacing: { before: 120, after: 120 } }));
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 120, after: 120 },
+      children: [
+        new TextRun({ text: "Kính gửi: ", font: FONT, size: bodySize }),
+        new TextRun({ text: cfg.kinhGui, font: FONT, size: bodySize })
+      ]
+    }));
   }
 
   // Body paragraphs
   (cfg.noiDung || []).forEach(text => {
-    children.push(p(text, { indent: { firstLine: 720 } }));
+    children.push(new Paragraph({
+      alignment: AlignmentType.JUSTIFIED,
+      spacing: { before: 120, after: 0, line: 276 },
+      indent: { firstLine: 720 },
+      children: [new TextRun({ text, font: FONT, size: bodySize })]
+    }));
   });
 
   children.push(buildFooter(cfg));
@@ -447,21 +624,29 @@ function createDocument(cfg) {
   const loai = cfg.loai || "cong-van";
   const entry = LOAI_VB_MAP[loai];
   if (!entry) {
-    throw new Error(`Unsupported document type: ${loai}. Supported types: ${Object.keys(LOAI_VB_MAP).join(", ")}`);
+    throw new Error(`Unsupported document type: ${loai}. Supported: ${Object.keys(LOAI_VB_MAP).join(", ")}`);
   }
 
+  const isDang = cfg.heTieuChuan === "dang" || loai.endsWith("-dang");
+  const bodySize = isDang ? 28 : 26;
   const children = entry.builder(cfg);
 
   return new Document({
     styles: {
       default: {
         document: {
-          run: { font: FONT, size: 26, color: "000000" }
+          run: { font: FONT, size: bodySize, color: "000000" }
         }
       }
     },
     sections: [{
-      properties: { page: PAGE_A4 },
+      properties: {
+        page: PAGE_A4,
+        titlePage: true // suppress page number on first page
+      },
+      headers: {
+        default: PAGE_HEADER
+      },
       children
     }]
   });
@@ -486,11 +671,15 @@ async function main() {
   const doc = createDocument(cfg);
   const buffer = await Packer.toBuffer(doc);
   fs.writeFileSync(outputPath, buffer);
-  console.log(`Document created: ${outputPath}`);
+  console.log(`Created: ${outputPath}`);
 }
 
 // Export for use as a module
-module.exports = { createDocument, buildHeaderNhaNuoc, buildHeaderDang, buildFooter, buildCongVan, buildQuyetDinh, buildGeneric, LOAI_VB_MAP };
+module.exports = {
+  createDocument, buildHeaderNhaNuoc, buildHeaderDang, buildFooter,
+  buildCongVan, buildQuyetDinh, buildGeneric, underline,
+  LOAI_VB_MAP, PAGE_A4, FONT
+};
 
 // Run from command line
 if (require.main === module) {
