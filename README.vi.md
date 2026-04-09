@@ -1,108 +1,100 @@
 *Tiếng Việt | [English](README.md)*
 
-# Văn Bản Hành Chính — Skill Tạo Văn Bản Hành Chính Việt Nam
+# Văn Bản Hành Chính AI Agent Skill
 
-Một AI Agent skill giúp tạo văn bản hành chính Việt Nam tuân thủ chặt chẽ các quy chuẩn trình bày chính thức của Nhà nước và Đảng.
+AI agent skill giúp soạn văn bản hành chính Việt Nam đúng chuẩn Nghị định 30/2020/NĐ-CP (nhà nước), Hướng dẫn 36-HD/VPTW (Đảng), và Quyết định 4114/QĐ-BTC (Bộ Tài chính).
 
-## Tiêu Chuẩn Hỗ Trợ
+File `.docx` đầu ra được trình bày đúng cách một chuyên viên văn phòng sẽ tạo thủ công trong Microsoft Word — bố cục bằng bảng ẩn viền, heading đúng chức năng, gạch chân bằng border có thể chỉnh độ dài, đánh số đúng kiểu — nên người nhận có thể mở file trong Word và chỉnh sửa tiếp mà không bị vỡ format.
 
-| Tiêu chuẩn | Phạm vi | Đặc điểm chính |
-|------------|---------|----------------|
-| **Nghị định 30/2020/NĐ-CP** | Văn bản hành chính nhà nước | 29 loại văn bản, header Quốc hiệu & Tiêu ngữ |
-| **Hướng dẫn 36-HD/VPTW** | Văn bản của Đảng Cộng sản Việt Nam | 33 loại văn bản, header "ĐẢNG CỘNG SẢN VIỆT NAM" |
-| **Quyết định 4114/QĐ-BTC** | Văn bản Bộ Tài chính (bổ sung NĐ 30) | Quy chuẩn bổ sung cho văn bản tài chính |
+
+## Yêu cầu
+
+### Cài gói docx
+
+Dùng NPM để cài đặt gói thư viện docx. Các AI Agent như Claude sẽ dùng docx để làm việc với các file docx:
+
+```bash
+npm install docx
+```
+
+
+## Cài Đặt
+
+### Claude Desktop (Cowork)
+
+Mở **Customize** ở thanh bên trái, bấm **"+"**, chọn file zip `van-ban-hanh-chinh` (Download repo này về dưới dạng file zip). Skill sẽ xuất hiện trong danh sách và có thể bật/tắt tùy ý.
+
+
+### Claude Code
+
+Copy thư mục skill vào một trong hai vị trí:
+
+```bash
+# Dùng được cho mọi project
+cp -r van-ban-hanh-chinh ~/.claude/skills/
+
+# Hoặc gắn với một project cụ thể
+cp -r van-ban-hanh-chinh .claude/skills/
+```
+
+### Cursor / Windsurf / Agent khác
+
+Hầu hết các agent hỗ trợ chuẩn [Agent Skills](https://agentskills.io) đều đọc được. Đặt thư mục vào nơi agent tìm custom instructions — thường là `~/.one-skills/skills/` hoặc tương đương. Yêu cầu duy nhất là `SKILL.md` nằm ở gốc thư mục.
 
 ## Skill Này Làm Gì
 
-Khi người dùng yêu cầu AI agent tạo văn bản hành chính Việt Nam, skill này cung cấp cho agent:
+Bạn yêu cầu bằng tiếng Việt — "Tạo công văn gửi Sở Giáo dục về việc triển khai kế hoạch năm học mới" — agent sẽ tạo file `.docx` với:
 
-- Thông số trình bày chính xác (căn lề, font, cỡ chữ, vị trí) cho từng thành phần văn bản
-- Mã nguồn docx-js sẵn dùng cho các loại văn bản phổ biến nhất
-- Script dòng lệnh để tự động tạo văn bản
-- Quy tắc rõ ràng về sự khác biệt giữa tiêu chuẩn văn bản nhà nước và văn bản Đảng
+- Đúng khổ A4, căn lề, font Times New Roman toàn bộ
+- Header bố cục 2 cột bằng bảng ẩn viền (tên cơ quan bên trái, quốc hiệu bên phải)
+- Gạch chân dưới tiêu ngữ và tên cơ quan bằng bottom border đúng kích thước, chỉnh được trong Word
+- Nội dung căn đều hai bên, thụt đầu dòng 1,27cm, giãn dòng đúng quy cách
+- Khối chữ ký và nơi nhận bố cục bằng bảng 2 cột ở cuối văn bản
 
-File `.docx` được tạo ra sẵn sàng sử dụng — đúng theo định dạng chính thức mà các cơ quan nhà nước và tổ chức Đảng Việt Nam đang dùng trong thực tế.
+Hỗ trợ 29 loại văn bản nhà nước (công văn, quyết định, tờ trình, báo cáo, thông báo, kế hoạch, biên bản, giấy mời, v.v.) và 33 loại văn bản Đảng (nghị quyết, chỉ thị, kết luận, thông báo, hướng dẫn, v.v.).
 
-## Các Loại Văn Bản Hỗ Trợ
+## Dùng Độc Lập (Không Cần AI Agent)
 
-### Văn bản nhà nước (29 loại theo NĐ 30/2020)
-
-Công văn, Quyết định, Nghị quyết, Chỉ thị, Thông báo, Báo cáo, Tờ trình, Kế hoạch, Chương trình, Quy chế, Quy định, Hướng dẫn, Biên bản, Hợp đồng, Giấy mời, Giấy giới thiệu, Giấy ủy quyền, Giấy nghỉ phép, Thông cáo, Bản ghi nhớ, Bản thỏa thuận, Phương án, Đề án, Dự án, Công điện, Phiếu gửi, Phiếu chuyển, Phiếu báo, Thư công.
-
-### Văn bản Đảng (33 loại theo HD 36)
-
-Nghị quyết, Chỉ thị, Quy định, Quy chế, Kết luận, Thông báo, Hướng dẫn, Công văn, Báo cáo, Quyết định, Kế hoạch, Chương trình, Thông tri, Quy trình và các loại khác.
-
-## Cấu Trúc Skill
-
-```
-van-ban-hanh-chinh/
-├── SKILL.md                              # Hướng dẫn chính cho AI agent (tiếng Anh)
-├── README.md                             # Giới thiệu tiếng Anh
-├── README.vi.md                          # Giới thiệu tiếng Việt (file này)
-├── references/
-│   ├── nghi-dinh-30.md                   # Quy chuẩn NĐ 30/2020 đầy đủ
-│   ├── huong-dan-36.md                   # Quy chuẩn HD 36 văn bản Đảng đầy đủ
-│   └── mau-van-ban.md                    # Mã nguồn docx-js mẫu cho từng loại VB
-├── scripts/
-│   └── create_vbhc.js                    # Script tự động tạo văn bản
-└── assets/
-    ├── sample-cong-van.json              # Cấu hình mẫu: công văn nhà nước
-    ├── sample-quyet-dinh.json            # Cấu hình mẫu: quyết định nhà nước
-    └── sample-nghi-quyet-dang.json       # Cấu hình mẫu: nghị quyết Đảng
-```
-
-## Cách Sử Dụng
-
-### Với AI Agent (Claude Code, Cowork, v.v.)
-
-Chỉ cần nói bằng tiếng Việt:
-
-- "Tạo công văn gửi Sở Giáo dục về việc triển khai kế hoạch năm học mới"
-- "Soạn quyết định bổ nhiệm phó giám đốc"
-- "Viết nghị quyết Đảng bộ về tăng cường công tác xây dựng Đảng"
-- "Làm báo cáo kết quả thực hiện nhiệm vụ quý I"
-- "Soạn tờ trình xin kinh phí tổ chức hội nghị"
-
-Agent sẽ đọc các file tham chiếu tương ứng, thu thập thông tin cần thiết từ bạn, và tạo file `.docx` đúng chuẩn.
-
-### Với Script Dòng Lệnh
+Script `scripts/create_vbhc.js` có thể được chạy riêng trực tiếp:
 
 ```bash
-# Cài đặt thư viện
 npm install docx
-
-# Tạo văn bản từ file cấu hình
 node scripts/create_vbhc.js --config assets/sample-cong-van.json --output cong-van.docx
 ```
 
-Xem thư mục `assets/` để tham khảo các file cấu hình mẫu.
+Thư mục `assets/` có sẵn file cấu hình mẫu cho công văn, quyết định, và nghị quyết Đảng.
 
-## So Sánh Nhanh Hai Hệ Tiêu Chuẩn
+## So Sánh Nhanh Văn Bản Nhà Nước và Đảng
 
 | | Nhà nước (NĐ 30) | Đảng (HD 36) |
 |---|---|---|
 | Header phải | CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM | ĐẢNG CỘNG SẢN VIỆT NAM |
-| Header trái | Tên cơ quan nhà nước | Tên tổ chức Đảng |
-| Ngăn cách | Đường kẻ ngang | Dấu sao (*) |
-| Ký hiệu | Số: 30/2020/NĐ-CP (dấu gạch chéo) | Số: 36-HD/VPTW (dấu gạch ngang) |
-| Quyền hạn | TM., KT., TL. (dấu chấm) | T/M, K/T, T/L (dấu gạch chéo) |
-| Căn lề | 20–25 / 30–35 / 15–20mm (khoảng) | 20 / 30 / 15mm (cố định) |
+| Ngăn cách | Gạch chân dưới tên cơ quan | Dấu sao (*) |
+| Ký hiệu | `Số: 30/2020/NĐ-CP` (gạch chéo) | `Số: 36-HD/VPTW` (gạch ngang) |
+| Quyền hạn | TM., KT., TL. | T/M, K/T, T/L |
+| Căn lề | 20–25 / 30–35 / 15–20mm | 20 / 30 / 15mm (cố định) |
 
-## Thông Số Kỹ Thuật
+## Cấu Trúc Dự Án
 
-Tất cả văn bản sử dụng:
-
-- **Giấy**: A4 (210 × 297mm)
-- **Font**: Times New Roman (duy nhất)
-- **Bảng mã**: TCVN 6909:2001 (Unicode)
-- **Cỡ chữ nội dung**: 13–14pt, căn đều hai bên, thụt đầu dòng 1,27cm
-- **Tiếng Việt**: Toàn bộ văn bản sử dụng đầy đủ dấu tiếng Việt
-
-Các thông số trình bày trong file tham chiếu bao gồm cả đơn vị đo thông thường (mm, pt) và giá trị DXA tương ứng để dùng trực tiếp trong mã docx-js.
+```
+van-ban-hanh-chinh/
+├── SKILL.md                    # Hướng dẫn cho agent (tiếng Anh)
+├── README.md                   # Giới thiệu tiếng Anh
+├── README.vi.md                # Giới thiệu tiếng Việt (file này)
+├── references/
+│   ├── nghi-dinh-30.md         # Quy chuẩn NĐ 30/2020
+│   ├── huong-dan-36.md         # Quy chuẩn HD 36 văn bản Đảng
+│   └── mau-van-ban.md          # Mẫu code docx-js cho từng loại văn bản
+├── scripts/
+│   └── create_vbhc.js          # Script tạo văn bản qua dòng lệnh
+└── assets/
+    ├── sample-cong-van.json
+    ├── sample-quyet-dinh.json
+    └── sample-nghi-quyet-dang.json
+```
 
 ## Tham Chiếu Pháp Lý
 
 - [Nghị định 30/2020/NĐ-CP](https://vanban.chinhphu.vn/default.aspx?pageid=27160&docid=199378) — Về công tác văn thư
-- [Hướng dẫn 36-HD/VPTW](https://tulieuvankien.dangcongsan.vn/) — Hướng dẫn thể thức và kỹ thuật trình bày văn bản của Đảng
-- [Quy định 66-QĐ/TW](https://tulieuvankien.dangcongsan.vn/) — Về thể loại, thẩm quyền ban hành và thể thức văn bản của Đảng
+- [Hướng dẫn 36-HD/VPTW](https://tulieuvankien.dangcongsan.vn/) — Thể thức và kỹ thuật trình bày văn bản của Đảng
+- [Quy định 66-QĐ/TW](https://tulieuvankien.dangcongsan.vn/) — Thể loại, thẩm quyền ban hành và thể thức văn bản của Đảng
