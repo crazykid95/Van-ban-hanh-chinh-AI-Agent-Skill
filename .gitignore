@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Output files
+*.docx
+*.pdf
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Skill package (generated artifact)
+*.skill
+
+# Temporary files
+*.tmp
+*.log
